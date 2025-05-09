@@ -9,6 +9,8 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
+export default app;
+
 // Fetch available formats for a video URL using yt-dlp
 import { exec } from 'child_process';
 
@@ -61,11 +63,51 @@ app.get('/api/formats', (req, res) => {
     res.json({ formats });
   });
 });
-app.post('/api/download', (req, res) => res.json({ status: 'downloading' }));
+import path from 'path';
+import fs from 'fs';
+
+// Download video with yt-dlp and stream progress
+app.post('/api/download', (req, res) => {
+  const { url, format, folder, filename } = req.body;
+  if (!url || !format || !folder || !filename) {
+    return res.status(400).json({ error: 'Missing parameters' });
+  }
+  const downloadDir = path.resolve(folder);
+  if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir, { recursive: true });
+  const outputPath = path.join(downloadDir, filename + '.%(ext)s');
+
+  // Spawn yt-dlp with progress
+  const yt = exec(
+    `yt-dlp -f ${format} -o "${outputPath}" --newline --no-playlist --no-warnings "${url}"`,
+    { maxBuffer: 1024 * 1024 * 10 }
+  );
+
+  res.setHeader('Content-Type', 'application/jsonl');
+  yt.stdout.on('data', (data) => {
+    // Parse progress lines (look for [download] lines)
+    const lines = data.toString().split('\n');
+    lines.forEach(line => {
+      const match = line.match(/\[download\]\s+(\d+\.\d+)% of ([^ ]+) at ([^ ]+) ETA ([^ ]+)/);
+      if (match) {
+        const [_, percent, size, speed, eta] = match;
+        res.write(JSON.stringify({ percent: parseFloat(percent), size, speed, eta }) + '\n');
+      }
+    });
+  });
+  yt.stderr.on('data', (data) => {
+    res.write(JSON.stringify({ error: data.toString() }) + '\n');
+  });
+  yt.on('close', (code) => {
+    res.write(JSON.stringify({ done: true, code }) + '\n');
+    res.end();
+  });
+});
 app.post('/api/screenshots', (req, res) => res.json({ screenshots: [] }));
 app.post('/api/convert', (req, res) => res.json({ status: 'converting' }));
 app.post('/api/hls', (req, res) => res.json({ status: 'hls-generating' }));
 
-app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`Backend running on http://localhost:${PORT}`);
+  });
+}
