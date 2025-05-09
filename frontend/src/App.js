@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import VideoInput from './components/VideoInput';
 import SettingsMenu from './components/SettingsMenu';
+import DownloadModal from './components/DownloadModal';
+import DownloadProgressBar from './components/DownloadProgressBar';
 import { ThemeProvider } from 'styled-components';
 import { fluentDark } from './theme/themes';
 
@@ -10,6 +12,10 @@ function App() {
   const [selectedFormat, setSelectedFormat] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [error, setError] = useState('');
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState({ percent: 0, size: '', speed: '', eta: '' });
 
   // Called when user submits a video URL
   const handleVideoUrl = async (url) => {
@@ -82,10 +88,72 @@ function App() {
               transition: 'background .2s, filter .2s',
               marginBottom: 32
             }}
-            onClick={() => alert('Download will be implemented next!')}
+            onClick={() => selectedFormat && setShowDownloadModal(true)}
           >
             Download
           </button>
+          <DownloadModal
+            isOpen={showDownloadModal}
+            onDismiss={() => { setShowDownloadModal(false); setDownloadError(''); }}
+            onDownload={async ({ filename, folder }) => {
+              setShowDownloadModal(false);
+              setDownloadError('');
+              setDownloading(true);
+              setDownloadProgress({ percent: 0, size: '', speed: '', eta: '' });
+              try {
+                const res = await fetch('/api/download', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    url: videoUrl,
+                    format: selectedFormat,
+                    filename,
+                    folder
+                  })
+                });
+                if (!res.body) throw new Error('No response body');
+                const reader = res.body.getReader();
+                let buffer = '';
+                while (true) {
+                  const { value, done } = await reader.read();
+                  if (done) break;
+                  buffer += new TextDecoder().decode(value);
+                  let lines = buffer.split('\n');
+                  buffer = lines.pop();
+                  for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                      const data = JSON.parse(line);
+                      if (data.percent !== undefined) {
+                        setDownloadProgress({
+                          percent: data.percent,
+                          size: data.size,
+                          speed: data.speed,
+                          eta: data.eta
+                        });
+                      } else if (data.done) {
+                        setDownloading(false);
+                        setDownloadProgress({ percent: 100, size: '', speed: '', eta: '' });
+                      } else if (data.error) {
+                        setDownloadError(data.error);
+                        setDownloading(false);
+                      }
+                    } catch (e) { /* ignore parse errors */ }
+                  }
+                }
+                setDownloading(false);
+              } catch (e) {
+                setDownloadError(e.message || 'Download failed');
+                setDownloading(false);
+              }
+            }}
+            defaultFilename={videoUrl ? `video_${selectedFormat}` : ''}
+            defaultFolder={''}
+            error={downloadError}
+          />
+          {downloading && (
+            <DownloadProgressBar {...downloadProgress} />
+          )}
           {/* Other components will be rendered here as the flow progresses */}
         </div>
       </div>
