@@ -16,6 +16,8 @@ function App() {
   const [downloadError, setDownloadError] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState({ percent: 0, size: '', speed: '', eta: '' });
+  const [downloadMessage, setDownloadMessage] = useState('');
+  const [downloadSuccess, setDownloadSuccess] = useState(null); // null | true | false
 
   // Called when user submits a video URL
   const handleVideoUrl = async (url) => {
@@ -98,6 +100,8 @@ function App() {
             onDownload={async ({ filename, folder }) => {
               setShowDownloadModal(false);
               setDownloadError('');
+              setDownloadMessage('');
+              setDownloadSuccess(null);
               setDownloading(true);
               setDownloadProgress({ percent: 0, size: '', speed: '', eta: '' });
               try {
@@ -114,6 +118,7 @@ function App() {
                 if (!res.body) throw new Error('No response body');
                 const reader = res.body.getReader();
                 let buffer = '';
+                let success = false;
                 while (true) {
                   const { value, done } = await reader.read();
                   if (done) break;
@@ -134,16 +139,27 @@ function App() {
                       } else if (data.done) {
                         setDownloading(false);
                         setDownloadProgress({ percent: 100, size: '', speed: '', eta: '' });
+                        setDownloadMessage('Download complete!');
+                        setDownloadSuccess(true);
+                        success = true;
                       } else if (data.error) {
                         setDownloadError(data.error);
+                        setDownloadMessage(data.error);
+                        setDownloadSuccess(false);
                         setDownloading(false);
                       }
                     } catch (e) { /* ignore parse errors */ }
                   }
                 }
+                if (!success && downloadSuccess === null) {
+                  setDownloadMessage('Download failed or interrupted.');
+                  setDownloadSuccess(false);
+                }
                 setDownloading(false);
               } catch (e) {
                 setDownloadError(e.message || 'Download failed');
+                setDownloadMessage(e.message || 'Download failed');
+                setDownloadSuccess(false);
                 setDownloading(false);
               }
             }}
@@ -153,6 +169,24 @@ function App() {
           />
           {downloading && (
             <DownloadProgressBar {...downloadProgress} />
+          )}
+          {downloadMessage && (
+            <div
+              style={{
+                margin: '16px 0',
+                padding: '14px 18px',
+                borderRadius: 8,
+                background: downloadSuccess ? 'linear-gradient(90deg,#00ffe7,#00f2fe,#00ffb2)' : 'linear-gradient(90deg,#ff6a00,#f80759)',
+                color: '#232b39',
+                fontWeight: 700,
+                fontSize: 18,
+                boxShadow: '0 0 8px #00ffe7',
+                textAlign: 'center'
+              }}
+              data-testid="download-feedback"
+            >
+              {downloadMessage}
+            </div>
           )}
           {/* Other components will be rendered here as the flow progresses */}
         </div>
