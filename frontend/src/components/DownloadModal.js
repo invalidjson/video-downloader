@@ -53,12 +53,19 @@ export default function DownloadModal({
           onChange={(_, v) => setFilename(v)}
           required
         />
-        <TextField
-          label="Folder"
-          value={folder}
-          onChange={(_, v) => setFolder(v)}
-          required
-        />
+        <div style={{ margin: '18px 0' }}>
+          <label style={{ color: '#fff', fontWeight: 300, marginBottom: 6, display: 'block' }}>Download Location (folder name or path):</label>
+          <input
+            type="text"
+            placeholder="e.g. MyVideos or /Users/yourname/Videos"
+            value={folder}
+            onChange={e => setFolder(e.target.value)}
+            style={{ width: '100%', padding: 10, borderRadius: 8, border: '1.5px solid #00ffe7', fontWeight: 200, background: '#232b39', color: '#fff' }}
+          />
+          <div style={{ color: '#aaa', fontSize: 13, marginTop: 6 }}>
+            Enter a folder name or full path. New folders will be created if they do not exist.
+          </div>
+        </div>
         {error && <div style={{ color: '#ff4f4f', marginTop: 8 }}>{error}</div>}
         <DialogFooter>
           <PrimaryButton onClick={handleDownload} text="Download" disabled={!filename.trim() || !folder.trim()} />

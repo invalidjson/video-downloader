@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import VideoInput from './components/VideoInput';
-import SettingsMenu from './components/SettingsMenu';
 import DownloadModal from './components/DownloadModal';
-import DownloadProgressBar from './components/DownloadProgressBar';
-import { ThemeProvider } from 'styled-components';
-import { fluentDark } from './theme/themes';
+
+import TrimConvertHLSSection from './components/TrimConvertHLSSection';
+import { API_BASE_URL } from './config';
 
 function App() {
   const [formats, setFormats] = useState([]);
@@ -27,7 +26,7 @@ function App() {
     setError('');
     setLoadingFormats(true);
     try {
-      const res = await fetch(`/api/formats?url=${encodeURIComponent(url)}`);
+      const res = await fetch(`${API_BASE_URL}/api/formats?url=${encodeURIComponent(url)}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setFormats(data.formats || []);
@@ -39,61 +38,144 @@ function App() {
   };
 
   return (
-    <ThemeProvider theme={fluentDark}>
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f2027 0%, #2c5364 100%)', color: '#fff' }}>
-        <SettingsMenu />
-        <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
-          <h1 style={{ fontWeight: 700, fontSize: 32, letterSpacing: 1, marginBottom: 32, background: 'linear-gradient(90deg, #00f2fe, #ff6a00, #f80759)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Video Downloader & Trimmer</h1>
-          <VideoInput onSubmit={handleVideoUrl} />
+    <div style={{ minHeight: '100vh', background: 'transparent', color: '#222', fontFamily: 'Inter, Helvetica Neue, Arial, sans-serif', fontWeight: 200, padding: 0, position: 'relative', overflow: 'hidden' }}>
+      {/* Video background */}
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          objectFit: 'cover',
+          zIndex: 0
+        }}
+      >
+        <source src="/assets/background.mp4" type="video/mp4" />
+      </video>
+      {/* Black overlay */}
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        background: 'rgba(0,0,0,0.7)',
+        zIndex: 1
+      }} />
+      {/* Main content */}
+      <style>{`
+        *:focus {
+          outline: 2px solid;
+          outline-color: transparent;
+          box-shadow: 0 0 0 3px
+            linear-gradient(90deg, #00f2fe, #00ffe7, #00c3ff, #00e0ff);
+          transition: box-shadow 0.2s;
+        }
+        input, select, button, textarea {
+          font-weight: 200 !important;
+        }
+      `}</style>
+      <div style={{ maxWidth: 700, margin: '0 auto', padding: '40px 24px 24px 24px', position: 'relative', zIndex: 2 }}>
+        <h1 style={{ fontWeight: 200, fontSize: 48, letterSpacing: '-1px', marginBottom: 40, color: '#222', fontFamily: 'Inter, Helvetica Neue, Arial, sans-serif', lineHeight: 1.1 }}>Video Downloader</h1>
+        <VideoInput onSubmit={handleVideoUrl} />
           {loadingFormats && <div style={{ color: '#00f2fe', marginBottom: 16 }}>Fetching formats...</div>}
           {error && <div style={{ color: '#f80759', marginBottom: 16 }}>{error}</div>}
           {formats.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <label htmlFor="format-select" style={{ color: '#fff', fontWeight: 600 }}>Select Quality:</label>
+            <div style={{ marginBottom: 32 }}>
+              <label htmlFor="format-select" style={{ color: '#222', fontWeight: 500, fontSize: 22, marginBottom: 10, display: 'block', fontFamily: 'inherit' }}>Select Quality:</label>
               <select
                 id="format-select"
                 value={selectedFormat}
                 onChange={e => setSelectedFormat(e.target.value)}
                 style={{
                   width: '100%',
-                  marginTop: 8,
-                  padding: 12,
-                  borderRadius: 8,
-                  background: '#181f2e',
-                  color: '#00f2fe',
-                  border: '1px solid #00f2fe',
+                  marginTop: 10,
+                  padding: '18px 24px',
+                  borderRadius: 14,
+                  background: '#fff',
+                  color: '#222',
+                  border: '1.5px solid #e6e6ea',
                   outline: 'none',
-                  fontSize: 16
+                  fontSize: '1.3rem',
+                  fontFamily: 'inherit',
+                  fontWeight: 400,
+                  marginBottom: 0,
+                  appearance: 'none',
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none',
+                  boxShadow: '0 2px 8px 0 rgba(60,60,120,0.04)'
                 }}
               >
                 <option value="">Choose a format...</option>
                 {formats.map(f => (
                   <option key={f.code} value={f.code}>
-                    {`${f.resolution}${f.size ? ` | ${f.size}` : ''}${f.note ? ` | ${f.note}` : ''}`}
+                    {`${f.resolution}${f.size ? ` ${f.size}` : ''} ${f.note && f.note.toLowerCase().includes('storyboard') ? 'storyboard' : f.note && f.note.toLowerCase().includes('audio') ? 'audio' : f.note && f.note.toLowerCase().includes('video') ? 'video' : f.ext}`}
+
                   </option>
                 ))}
               </select>
             </div>
           )}
-          <button
-            disabled={!selectedFormat}
-            style={{
-              background: selectedFormat ? 'linear-gradient(90deg, #00f2fe, #ff6a00, #f80759)' : '#333',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              padding: '12px 32px',
-              fontSize: 18,
-              fontWeight: 700,
-              cursor: selectedFormat ? 'pointer' : 'not-allowed',
-              filter: selectedFormat ? 'drop-shadow(0 0 8px #00f2fe)' : 'none',
-              transition: 'background .2s, filter .2s',
-              marginBottom: 32
-            }}
-            onClick={() => selectedFormat && setShowDownloadModal(true)}
-          >
-            Download
-          </button>
+          {formats.length > 0 && selectedFormat && !downloading && (
+            <button
+              style={{
+                background: '#6c47ff',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 14,
+                padding: '18px 32px',
+                fontSize: '1.4rem',
+                fontWeight: 500,
+                marginTop: 18,
+                marginBottom: 32,
+                cursor: 'pointer',
+                outline: 'none',
+                boxShadow: '0 2px 8px 0 rgba(60,60,120,0.04)',
+                transition: 'box-shadow 0.2s',
+                display: 'block',
+                width: '100%',
+              }}
+              onClick={() => setShowDownloadModal(true)}
+            >
+              Download
+            </button>
+          )}
+          {downloading && (
+  <div style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    background: 'rgba(0,0,0,0.7)',
+    zIndex: 10000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background 0.2s',
+  }}>
+    <div style={{
+      width: '75vw',
+      height: '75vh',
+      background: 'rgba(24,31,46,0.95)',
+      borderRadius: 24,
+      boxShadow: '0 8px 32px 0 rgba(0,0,0,0.35)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative',
+    }}>
+      <img src="/assets/downloading.gif" alt="Downloading..." style={{ width: 480, height: 480, objectFit: 'contain', marginBottom: 32 }} />
+      <div style={{ color: '#00f2fe', fontWeight: 300, fontSize: 32, letterSpacing: 1 }}>Downloading...</div>
+    </div>
+  </div>
+)}
           <DownloadModal
             isOpen={showDownloadModal}
             onDismiss={() => { setShowDownloadModal(false); setDownloadError(''); }}
@@ -105,7 +187,7 @@ function App() {
               setDownloading(true);
               setDownloadProgress({ percent: 0, size: '', speed: '', eta: '' });
               try {
-                const res = await fetch('/api/download', {
+                const res = await fetch(`${API_BASE_URL}/api/download`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -167,20 +249,18 @@ function App() {
             defaultFolder={''}
             error={downloadError}
           />
-          {downloading && (
-            <DownloadProgressBar {...downloadProgress} />
-          )}
           {downloadMessage && (
             <div
               style={{
-                margin: '16px 0',
-                padding: '14px 18px',
-                borderRadius: 8,
-                background: downloadSuccess ? 'linear-gradient(90deg,#00ffe7,#00f2fe,#00ffb2)' : 'linear-gradient(90deg,#ff6a00,#f80759)',
-                color: '#232b39',
-                fontWeight: 700,
-                fontSize: 18,
-                boxShadow: '0 0 8px #00ffe7',
+                margin: '24px 0',
+                padding: '20px 26px',
+                borderRadius: 14,
+                background: '#f4f4f8',
+                color: '#222',
+                fontWeight: 500,
+                fontSize: 22,
+                border: '1.5px solid #e6e6ea',
+                boxShadow: '0 2px 12px 0 rgba(60,60,120,0.06)',
                 textAlign: 'center'
               }}
               data-testid="download-feedback"
@@ -188,11 +268,45 @@ function App() {
               {downloadMessage}
             </div>
           )}
-          {/* Other components will be rendered here as the flow progresses */}
+          {downloadSuccess === true && (
+            <TrimConvertHLSSection
+              videoFilename={videoUrl ? `video_${selectedFormat}` : ''}
+              downloadFolder={''}
+              canConvertToMp4={selectedFormat && formats.find(f => f.code === selectedFormat && f.ext !== 'mp4')}
+              isMp4={selectedFormat && formats.find(f => f.code === selectedFormat && f.ext === 'mp4')}
+              onTrim={async ({ start, end }) => {
+                const res = await fetch(`${API_BASE_URL}/api/trim`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ filename: videoUrl ? `video_${selectedFormat}` : '', start, end })
+                });
+                if (!res.ok) throw new Error('Trim failed');
+                return res.json();
+              }}
+              onConvert={async () => {
+                const res = await fetch(`${API_BASE_URL}/api/convert`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ filename: videoUrl ? `video_${selectedFormat}` : '' })
+                });
+                if (!res.ok) throw new Error('Convert failed');
+                return res.json();
+              }}
+              onHLS={async () => {
+                const res = await fetch(`${API_BASE_URL}/api/hls`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ filename: videoUrl ? `video_${selectedFormat}` : '' })
+                });
+                if (!res.ok) throw new Error('HLS generation failed');
+                return res.json();
+              }}
+            />
+          )}
+
         </div>
       </div>
-    </ThemeProvider>
-  );
+    );
 }
 
 export default App;
